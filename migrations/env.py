@@ -1,6 +1,7 @@
 import os
 from logging.config import fileConfig
-from app.models import user  # This ensures User model is registered
+from app.models import user
+from app.models import request_log
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from dotenv import load_dotenv

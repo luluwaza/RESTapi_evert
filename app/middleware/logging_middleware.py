@@ -1,9 +1,8 @@
 import time
-import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-
-logger = logging.getLogger("uvicorn.access")
+from app.db.session import SessionLocal
+from app.models.request_log import RequestLog
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
@@ -12,22 +11,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration = round(time.time() - start_time, 4)
 
-        client_ip = request.client.host
-        method = request.method
-        path = request.url.path
-        version = request.scope.get("http_version", "1.1")
-        status_code = response.status_code
-
-        # ✅ Pass the expected 5-tuple as args
-        logger.info(
-            '%s - "%s %s HTTP/%s" %s',
-            client_ip,
-            method,
-            path,
-            version,
-            status_code,
-        )
-
-        # Optional: You can still print duration to a separate logger if you want
+        db = SessionLocal()
+        try:
+            log = RequestLog(
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                client_ip=request.client.host,
+                duration=duration,
+            )
+            db.add(log)
+            db.commit()
+        finally:
+            db.close()
 
         return response
