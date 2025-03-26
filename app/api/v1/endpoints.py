@@ -10,7 +10,9 @@ from app.core.security import create_access_token
 from datetime import timedelta
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.core.security import fake_users_db
-
+from app.models.user import User
+from passlib.context import CryptContext
+from fastapi import HTTPException
 
 router = APIRouter()
 
@@ -31,15 +33,19 @@ def get_logs(
     return logs
 
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
 @router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = fake_users_db.get(form_data.username)
-    if user is None:
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not pwd_context.verify(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid username or password")
 
-    # No password check in fake DB — add later if needed
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user["username"]}, expires_delta=access_token_expires
+        data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
