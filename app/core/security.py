@@ -7,6 +7,7 @@ from app.core.config import SECRET_KEY, ALGORITHM
 from app.models.user import User
 from app.db.dependencies import get_db
 from sqlalchemy.orm import Session
+from app.auth.dependencies import get_current_user
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
@@ -15,6 +16,18 @@ fake_users_db = {
     "lucas": {"username": "lucas", "role": "admin"},
     "evert": {"username": "evert", "role": "user"},
 }
+
+
+def require_role(role: str):
+    def role_dependency(current_user: User = Depends(get_current_user)):
+        if current_user.role != role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"{role.capitalize()} access required",
+            )
+        return current_user
+
+    return role_dependency
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

@@ -13,8 +13,10 @@ from app.core.security import fake_users_db
 from app.models.user import User
 from passlib.context import CryptContext
 from fastapi import HTTPException
+from app.api.v1.admin_users import router as admin_users_router
 
 router = APIRouter()
+router.include_router(admin_users_router)
 
 
 @router.get("/hello")
