@@ -9,7 +9,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.core.security import create_access_token
 from datetime import timedelta
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
-from app.core.security import fake_users_db
 from app.models.user import User
 from passlib.context import CryptContext
 from fastapi import HTTPException
@@ -17,11 +16,6 @@ from app.api.v1.admin_users import router as admin_users_router
 
 router = APIRouter()
 router.include_router(admin_users_router)
-
-
-@router.get("/hello")
-def hello_world(version: str = Depends(get_api_version)):
-    return {"version": version, "message": "hello world"}
 
 
 @router.get("/logs", response_model=list[RequestLogRead])
@@ -40,7 +34,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.post("/login")
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    version: str = Depends(get_api_version),
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not pwd_context.verify(form_data.password, user.hashed_password):
