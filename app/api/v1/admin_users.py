@@ -77,6 +77,44 @@ def create_user(
         )
 
 
+@router.put("/admin/users/{user_id}", response_model=UserRead)
+def update_user(
+    user_id: int,
+    user_in: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user_in.role not in ("user", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role. Allowed values are: 'user', 'admin'.",
+        )
+
+    user.username = user_in.username
+    user.hashed_password = user_in.hashed_password
+    user.role = user_in.role
+
+    try:
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError as e:
+        db.rollback()
+        if "ix_users_username" in str(e.orig):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Username '{user_in.username}' already exists.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error.",
+        )
+
+
 @router.delete("/admin/users/{user_id}", status_code=204)
 def delete_user(
     user_id: int,
@@ -96,7 +134,6 @@ def refresh_token(request: Request, user: User = Depends(get_current_user)):
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing token")
-
     token = auth_header.split("Bearer ")[-1]
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -107,10 +144,7 @@ def refresh_token(request: Request, user: User = Depends(get_current_user)):
         now = datetime.now(timezone.utc)
         new_exp = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         payload["exp"] = int(new_exp.timestamp())
-
         extended_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
-        # Replace token with updated token in response (assume same token handling client-side)
         return {"access_token": extended_token, "token_type": "bearer"}
 
     except JWTError:
